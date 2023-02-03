@@ -1,0 +1,175 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed 14 Sept 2022 15:00
+
+@author: borlazal
+"""
+
+import pandas as pd
+import numpy as np
+from sklearn import metrics
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.metrics import r2_score
+
+#Insert the dataframe here
+data = pd.read_excel(r"C:\Users\borlazal.AD\Desktop\MobilAir\11_Lockdown\DATA\11102022\Random Forest\Input database\BERN_PM2.5_RF.xlsx"
+                    , parse_dates=["Date"]) 
+
+#Create the dataframe for the target variable
+dfy=data[['Date',
+       'PM',
+       ]] 
+
+dfy.set_index('Date', inplace=True)
+dfy.dropna(inplace=True)
+dfy.plot()
+print("Given Dataframe :\n", dfy) #This is your time-series dataframe
+
+#Create lag variables. Check if dates are same from the original index.
+df_lag=pd.DataFrame()
+df_lag = dfy.shift(freq="D", periods=366)
+df_lag.rename(columns={"PM":"var_lag"}, inplace=True)
+df_lag["var_lag"].plot()  
+print("Given Dataframe :\n", df_lag)
+
+#Create the df for the features
+dfx=data[['Date',
+       'T',
+        'RH',
+       #'WS',
+       #'WD',
+       'OC',
+       'EC',
+       ]] 
+
+#Add a few more features to help the model. I chose day, week, month, and year to account for seasonality in the trends. 
+dfx['Unix'] = (data['Date'] - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+dfx['Day'] = pd.DatetimeIndex(data['Date']).dayofyear
+# dfx['Week'] = pd.DatetimeIndex(data['Date']).weekofyear
+# dfx['Month'] = pd.DatetimeIndex(data['Date']).month
+# dfx['Year'] = pd.DatetimeIndex(data['Date']).year
+
+dfx.set_index('Date', inplace=True)
+idx=dfx.dropna().index.intersection(dfy.index)
+print("Given Dataframe :\n", dfx)
+
+dfx=dfx.loc[idx]
+print("Given Dataframe :\n", dfx)
+dfy=dfy.loc[idx]
+print("Given Dataframe :\n", dfy)
+
+#Feature selection. This is where we enter which variable we want to predict.
+x = dfx.iloc[:, 0:10].dropna().values
+print("x_shape:", x.shape)
+y = dfy.iloc[:, 0].dropna().values 
+print("x_shape:", y.shape)
+
+#Divide the dataset into train and test sets
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.4,  random_state=0, shuffle=True) 
+
+#Scaling the features
+scale = StandardScaler()
+x_train = scale.fit_transform(x_train)
+x_test = scale.transform(x_test)
+
+#Hyperparameter tuning
+grid_rf = {
+'n_estimators': [20, 50, 100, 500, 1000],  
+'max_depth': np.arange(1, 15, 1),  
+'min_samples_split': [2, 10, 9], 
+'min_samples_leaf': np.arange(1, 15, 2, dtype=int),  
+'bootstrap': [True, False],
+'oob_score': [True, False], 
+'random_state': [1, 2, 30, 42]
+}
+
+#Apply model and predict
+model = RandomForestRegressor(random_state=30, 
+                              oob_score=False,
+                              n_estimators=500, 
+                              min_samples_split=9, 
+                              min_samples_leaf=3, 
+                              max_depth=13, 
+                              bootstrap=True, 
+                              )
+
+model.fit(x_train, y_train)
+predict = model.predict(x_test)
+print(predict)
+print(predict.shape)
+
+# #Hyperparameter tuning. Apply a hyper tuning step (optional). 
+# rscv = RandomizedSearchCV(estimator=model, param_distributions=grid_rf, cv=3, n_jobs=-1, verbose=2, n_iter=200)
+# rscv_fit = rscv.fit(x_train, y_train)
+# best_parameters = rscv_fit.best_params_
+# print(best_parameters)
+
+#Statistical metrics and performance evaluation
+#print("Out-of-bag score", round(model.oob_score_, 4)) #Use this if oob_score=True
+print('Importances', model.feature_importances_)
+print("Mean Absolute Error", round(metrics.mean_absolute_error(y_test, predict), 4))
+print("Mean Squared Error", round(metrics.mean_squared_error(y_test, predict), 4))
+print("Root Mean Squared Error", round(np.sqrt(metrics.mean_squared_error(y_test, predict)), 4))
+print("(R^2) Score", round(metrics.r2_score(y_test, predict), 4))
+print(f'Train Score  {model.score(x_train, y_train) * 100:.3f}') #Take note that this is percentage
+print(f'Test Score  {model.score(x_test, y_test) * 100:.3f}') #Take note that this is percentage
+errors = abs(predict - y_test)
+mape = 100 * (errors / y_test)
+accuracy = 100 - np.mean(mape)
+print('Accuracy', round(accuracy, 3)) #Take note that this is percentage
+
+#Collect future days from predicted values 
+predictions = pd.DataFrame({"Predictions": predict}, index=pd.date_range(start=dfy.index[-1], periods=(len(predict)), freq="D")) #freq="2D" if you have a shorter time-series
+predictions.to_csv(r"C:\Users\borlazal.AD\Desktop\MobilAir\11_Lockdown\DATA\11102022\Random Forest\Predictions\Predicted-data.csv")
+
+#Explore the accuracy of the test set. Here, a is the observed vs model of the test set, while b is for the training set. 
+plt.rcParams['figure.dpi'] = 300
+
+plt.figure(figsize=(5, 5))
+a=plt.scatter(y=predict, x=y_test, 
+            c ="blue",
+            linewidths = 0.5,
+            marker ="o",
+            edgecolor ="black",
+            alpha=0.3,
+            s = 50)
+a=plt.plot([0, max(predict)+max(predict*0.2)], [0, max(predict)+max(predict*0.2)], color = 'red', linestyle = 'solid')
+
+a=plt.xlabel('Observed PM$_{10}$ (µg m$^{-3}$)')
+a=plt.ylabel('Predicted PM$_{10}$ (µg m$^{-3}$)')
+
+a=plt.ylim(0,max(predict)+max(predict*0.2))
+a=plt.xlim(0,max(predict)+max(predict*0.2))
+a=plt.annotate("Test set:" + 
+               "\n" + 
+               "r-squared = {:.2f}".format(r2_score(y_test, predict)) + 
+               "\n" + 
+               "RMSE = {:.2f}".format(np.sqrt(metrics.mean_squared_error(y_test, predict))), 
+               (min(predict*0.05), max(predict)))
+
+plt.figure(figsize=(5, 5))
+predict_train = model.predict(x_train)
+b=plt.scatter(y=predict_train, x=y_train, 
+            c ="blue",
+            linewidths = 0.5,
+            marker ="o",
+            edgecolor ="black",
+            alpha=0.3,
+            s = 50)
+b=plt.plot([0, max(predict_train)+max(predict_train*0.2)], [0, max(predict_train)+max(predict_train*0.2)], color = 'red', linestyle = 'solid')
+
+b=plt.xlabel('Observed PM$_{10}$ (µg m$^{-3}$)')
+b=plt.ylabel('Predicted PM$_{10}$ (µg m$^{-3}$)')
+
+b=plt.ylim(0,max(predict_train)+max(predict_train*0.2))
+b=plt.xlim(0,max(predict_train)+max(predict_train*0.2))
+b=plt.annotate("Train set:" + 
+               "\n" + 
+               "r-squared = {:.2f}".format(r2_score(y_train, predict_train)) + 
+               "\n" + 
+               "RMSE = {:.2f}".format(np.sqrt(metrics.mean_squared_error(y_train, predict_train))), 
+               (min(predict_train*0.05), max(predict_train)))
