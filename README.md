@@ -1,6 +1,6 @@
 # OP-Lockdown
 
-## Data and Python code for the article entitled, "Impact of COVID-19 lockdown on particulate matter oxidative potential at urban background versus traffic sites", with co-authors including Lucille Joanna S. Borlaza, Vy Dinh Ngoc Thuy, Stuart Grange, Stéphane Socquet, Emmanuel Moussu, Gladys Mary, Olivier Favez, Christoph Hueglin, Jean-Luc Jaffrezo, and Gaëlle Uzu. This article was submitted to RCS Atmospheres last 23 January 2023. DOI: 10.1039/D3EA00013C
+Data and Python code for the article entitled, "Impact of COVID-19 lockdown on particulate matter oxidative potential at urban background versus traffic sites", with co-authors including Lucille Joanna S. Borlaza, Vy Dinh Ngoc Thuy, Stuart Grange, Stéphane Socquet, Emmanuel Moussu, Gladys Mary, Olivier Favez, Christoph Hueglin, Jean-Luc Jaffrezo, and Gaëlle Uzu. This article was submitted to RCS Atmospheres last 23 January 2023. DOI: 10.1039/D3EA00013C
 
 This code has been implemented to reproduce the main analysis applied in the study (will be referenced once published). It uses long-term data of particulate matter (PM) and black carbon (BC) mass concentration, and oxidative poential activity of PM collected in an urban site in Grenoble, France and a traffic site in Bern, Switzerland. 
 
